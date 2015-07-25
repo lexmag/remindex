@@ -1,4 +1,4 @@
-Code.require_file "../test_helper.exs", __FILE__
+Code.require_file "../test_helper.exs", __ENV__.file
 
 defmodule RemindexTest do
   use ExUnit.Case
@@ -12,7 +12,7 @@ defmodule RemindexTest do
 
   defp refute_raise(_, function), do: function.()
 
-  defp with(options // [], function) do
+  defp with(options \\ [], function) do
     pid = Remindex.start
 
     :timer.sleep(10)
