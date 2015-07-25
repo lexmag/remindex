@@ -1,5 +1,6 @@
 defmodule Remindex.Server do
-  defrecordp :state, events: HashDict.new, clients: HashDict.new
+  require Record
+  Record.defrecordp :state, events: HashDict.new, clients: HashDict.new
 
   def start do
     pid = spawn(__MODULE__, :init, [])
@@ -13,15 +14,15 @@ defmodule Remindex.Server do
     pid
   end
 
-  def init(s // state), do: loop(s)
+  def init(s \\ state), do: loop(s)
 
   def terminate do
-    __MODULE__ <- :shutdown
+    send __MODULE__, :shutdown
   end
 
   def subscribe(pid) do
     ref = Process.monitor Process.whereis(__MODULE__)
-    __MODULE__ <- { self, ref, { :subscribe, pid }}
+    send __MODULE__, { self, ref, { :subscribe, pid }}
 
     receive do
       { ^ref, :ok } -> :ok
@@ -34,7 +35,7 @@ defmodule Remindex.Server do
 
   def add(name, moment) do
     ref = make_ref
-    __MODULE__ <- { self, ref, { :add, name, moment }}
+    send __MODULE__, { self, ref, { :add, name, moment }}
 
     receive do
       { ^ref, message } -> message
@@ -45,7 +46,8 @@ defmodule Remindex.Server do
 
   def cancel(name) do
     ref = make_ref
-    __MODULE__ <- { self, ref, { :cancel, name }}
+    send __MODULE__, { self, ref, { :cancel, name }}
+ 
 
     receive do
       { ^ref, :ok } -> :ok
@@ -68,7 +70,7 @@ defmodule Remindex.Server do
         ref = Process.monitor client
         dict = Dict.put(clients, ref, client)
 
-        pid <- { msg_ref, :ok }
+        send pid, { msg_ref, :ok }
         state(server, clients: dict) |> loop
 
       { pid, msg_ref, { :add, name, moment }} ->
@@ -76,10 +78,10 @@ defmodule Remindex.Server do
           event = Remindex.Event.start_link(name, moment)
           dict = Dict.put(events, name, event)
 
-          pid <- { msg_ref, :ok }
+          send pid, { msg_ref, :ok }
           state(server, events: dict) |> loop
         else
-          pid <- { msg_ref, { :error, :badmoment }}
+          send pid, { msg_ref, { :error, :badmoment }}
           loop(server)
         end
 
@@ -90,7 +92,7 @@ defmodule Remindex.Server do
           Remindex.Event.cancel(event)
         end
 
-        pid <- { msg_ref, :ok }
+        send pid, { msg_ref, :ok }
         state(server, events: dict) |> loop
 
       { :done, name } ->
@@ -98,7 +100,7 @@ defmodule Remindex.Server do
 
         if event do
           Enum.each clients, fn({_ref, pid}) ->
-            pid <- { :done, name }
+            send pid, { :done, name }
           end
         end
 

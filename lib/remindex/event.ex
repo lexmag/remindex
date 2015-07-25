@@ -1,5 +1,7 @@
+
 defmodule Remindex.Event do
-  defrecordp :state, [:server, :name, :delay]
+  require Record
+  Record.defrecordp :state, [:server, :name, :delay]
 
   def start(name, moment) do
     spawn(__MODULE__, :init, [self, name, moment])
@@ -11,7 +13,7 @@ defmodule Remindex.Event do
 
   def cancel(pid) do
     ref = Process.monitor(pid)
-    pid <- { self, ref, :cancel }
+    send pid, { self, ref, :cancel }
 
     receive do
       { ^ref, :ok } ->
@@ -28,11 +30,12 @@ defmodule Remindex.Event do
 
   defp loop(state(server: server, delay: [current | left]) = event) do
     receive do
-      { ^server, ref, :cancel } -> server <- { ref, :ok }
+      { ^server, ref, :cancel } -> server
+      send server, { :done, state(event, :name) }
     after
       current * 1000 ->
         if left == [] do
-          server <- { :done, state(event, :name) }
+          send server, { :done, state(event, :name) }
         else
           state(event, delay: left) |> loop
         end
